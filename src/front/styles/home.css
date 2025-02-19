@@ -1,7 +1,37 @@
-/*
-    home.css: This website contains selectors only used in home.css
+.container {
+    max-width: 900px;
+}
 
-    All pages share the styles on index.css but you should create 
-    one more css for each page that will contain the selected used 
-    on that page only (the ones not reused in other pages).
-*/
+.tab-content {
+    padding: 20px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.post-form textarea {
+    width: 100%;
+    border-radius: 8px;
+}
+
+.feed-item {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background: #f9f9f9;
+}
+
+.actions button {
+    margin-right: 10px;
+}
+
+/* Additional styles for modal backdrop */
+.modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+}
