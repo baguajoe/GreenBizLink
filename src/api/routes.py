@@ -137,22 +137,25 @@ def get_job_comments(job_id):
 @api.route('/job/<int:job_id>/comment', methods=['POST'])
 @jwt_required()
 def add_job_comment(job_id):
+    user_id = get_jwt_identity()
     data = request.get_json()
     content = data.get('content')
-    user_id = get_jwt_identity()
+    parent_id = data.get('parent_id')  # Allow nested comments
 
     if not content:
         return jsonify({"error": "Content is required"}), 400
 
-    job = JobPosting.query.get(job_id)
-    if not job:
-        return jsonify({"error": "Job not found"}), 404
-
-    new_comment = JobComment(job_id=job_id, user_id=user_id, content=content)
+    new_comment = JobComment(
+        job_id=job_id,
+        user_id=user_id,
+        content=content,
+        parent_id=parent_id
+    )
     db.session.add(new_comment)
     db.session.commit()
 
     return jsonify(new_comment.serialize()), 201
+
 
 # ----- JOB APPLICATIONS ROUTES -----
 
@@ -160,19 +163,52 @@ def add_job_comment(job_id):
 @jwt_required()
 def apply_for_job(job_id):
     user_id = get_jwt_identity()
-    job = JobPosting.query.get(job_id)
+    if 'resume' not in request.files:
+        return jsonify({"error": "Resume file is required"}), 400
 
-    if not job:
-        return jsonify({"error": "Job not found"}), 404
+    resume = request.files['resume']
+    filename = secure_filename(resume.filename)
+    file_path = os.path.join("uploads/resumes", filename)
+    resume.save(file_path)
 
-    if JobApplication.query.filter_by(user_id=user_id, job_id=job_id).first():
-        return jsonify({"error": "Already applied to this job"}), 400
-
-    application = JobApplication(user_id=user_id, job_id=job_id)
+    application = JobApplication(
+        user_id=user_id,
+        job_id=job_id,
+        resume_file_path=file_path
+    )
     db.session.add(application)
     db.session.commit()
 
     return jsonify(application.serialize()), 201
+
+
+@api.route('/job/<int:job_id>/applications/<int:application_id>/status', methods=['PATCH'])
+@jwt_required()
+def update_application_status(job_id, application_id):
+    user = get_jwt_identity()
+    application = JobApplication.query.get(application_id)
+
+    if not application or application.job_id != job_id:
+        return jsonify({"error": "Application not found"}), 404
+
+    # Ensure only hiring managers can review applications
+    job = JobPosting.query.get(job_id)
+    if job.company_id != user['company_id']:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    data = request.json
+    new_status = data.get("status")
+    decision_notes = data.get("decision_notes", "")
+
+    if new_status not in ["pending", "accepted", "rejected"]:
+        return jsonify({"error": "Invalid status"}), 400
+
+    application.status = new_status
+    application.decision_notes = decision_notes
+    db.session.commit()
+
+    return jsonify({"message": "Application status updated"}), 200
+
 
 @api.route('/upload/video', methods=['POST'])
 @jwt_required()
@@ -250,3 +286,50 @@ def get_image(filename):
         return jsonify({"error": "Image not found"}), 404
 
     return send_file(image_path)
+
+
+@api.route('/companies/<int:company_id>/jobs', methods=['POST'])
+@jwt_required()
+def post_job(company_id):
+    user = get_jwt_identity()
+    company = Company.query.get(company_id)
+
+    if not company:
+        return jsonify({"error": "Company not found"}), 404
+
+    user_obj = User.query.get(user['id'])
+
+    # Ensure user is part of the company and has permission
+    if user_obj.company_id != company_id or user_obj.role not in ["DISPENSARY_OWNER", "GROWER", "MANAGER"]:
+        return jsonify({"error": "Unauthorized to post jobs"}), 403
+
+    # Extract job details
+    data = request.get_json()
+    title = data.get("title")
+    category = data.get("category")
+    description = data.get("description")
+    location = data.get("location")
+    salary = data.get("salary")
+
+    if not title or not description or not location:
+        return jsonify({"error": "Title, description, and location are required"}), 400
+
+    # Create new job posting
+    new_job = JobPosting(
+        title=title,
+        category=category,
+        description=description,
+        location=location,
+        salary=salary,
+        posted_by=user['id'],
+        company_id=company_id
+    )
+    db.session.add(new_job)
+    db.session.commit()
+
+    return jsonify({"message": "Job posted successfully", "job": new_job.serialize()}), 201  
+
+@api.route('/companies/<int:company_id>/jobs', methods=['GET'])
+def get_company_jobs(company_id):
+    jobs = JobPosting.query.filter_by(company_id=company_id).all()
+    return jsonify([job.serialize() for job in jobs])
