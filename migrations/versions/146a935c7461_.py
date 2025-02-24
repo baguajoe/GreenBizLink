@@ -1,8 +1,8 @@
 """empty message
 
-Revision ID: eae89d58fc8d
+Revision ID: 146a935c7461
 Revises: 
-Create Date: 2025-02-19 01:28:45.968374
+Create Date: 2025-02-23 18:04:29.056831
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'eae89d58fc8d'
+revision = '146a935c7461'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -21,7 +21,16 @@ def upgrade():
     op.create_table('company',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('industry', sa.String(length=100), nullable=True),
+    sa.Column('company_size', sa.String(length=50), nullable=True),
     sa.Column('location', sa.String(length=100), nullable=True),
+    sa.Column('website', sa.String(length=255), nullable=True),
+    sa.Column('phone', sa.String(length=20), nullable=True),
+    sa.Column('email', sa.String(length=120), nullable=True),
+    sa.Column('social_links', sa.String(length=255), nullable=True),
+    sa.Column('founded_year', sa.Integer(), nullable=True),
+    sa.Column('verified', sa.Boolean(), nullable=True),
+    sa.Column('logo', sa.String(length=255), nullable=True),
     sa.Column('description', sa.Text(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('name')
@@ -31,19 +40,39 @@ def upgrade():
     sa.Column('name', sa.String(length=80), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('token_blocklist',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('jti', sa.String(length=36), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('jti'),
+    sa.UniqueConstraint('jti')
+    )
+    op.create_table('advertisements',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('company_id', sa.Integer(), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=False),
+    sa.Column('image_url', sa.String(length=255), nullable=True),
+    sa.Column('link', sa.String(length=255), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('active', sa.Boolean(), nullable=True),
+    sa.ForeignKeyConstraint(['company_id'], ['company.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('user',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=80), nullable=False),
     sa.Column('email', sa.String(length=120), nullable=False),
     sa.Column('password_hash', sa.String(length=200), nullable=False),
     sa.Column('bio', sa.String(length=250), nullable=True),
-    sa.Column('role', sa.Enum('ADMIN', 'USER', 'GUEST', 'GROWER', 'DISPENSARY_OWNER', 'BUDTENDER', 'LEGAL_ADVISOR', 'CUSTOMER', 'OTHER', name='userrole'), nullable=True),
-    sa.Column('certifications', sa.String(length=250), nullable=True),
-    sa.Column('endorsements', sa.Integer(), nullable=True),
+    sa.Column('role', sa.Enum('ADMIN', 'USER', 'GUEST', 'GROWER', 'DISPENSARY_OWNER', 'BUDTENDER', 'LEGAL_ADVISOR', 'CUSTOMER', 'OTHER', name='userrole'), nullable=False),
     sa.Column('city', sa.String(length=50), nullable=True),
     sa.Column('state', sa.String(length=50), nullable=True),
     sa.Column('profile_image', sa.String(length=250), nullable=True),
     sa.Column('company_id', sa.Integer(), nullable=True),
+    sa.Column('is_verified', sa.Boolean(), nullable=True),
+    sa.Column('last_login', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['company_id'], ['company.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email')
@@ -70,11 +99,14 @@ def upgrade():
     op.create_table('job_posting',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('title', sa.String(length=100), nullable=False),
+    sa.Column('category', sa.String(length=100), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
     sa.Column('location', sa.String(length=100), nullable=False),
     sa.Column('salary', sa.String(length=50), nullable=True),
     sa.Column('posted_by', sa.Integer(), nullable=False),
+    sa.Column('company_id', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['company_id'], ['company.id'], ),
     sa.ForeignKeyConstraint(['posted_by'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -97,11 +129,13 @@ def upgrade():
     op.create_table('user_media',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('company_id', sa.Integer(), nullable=True),
     sa.Column('file_name', sa.String(length=255), nullable=False),
     sa.Column('file_type', sa.String(length=50), nullable=False),
     sa.Column('file_path', sa.String(length=255), nullable=False),
     sa.Column('instructional', sa.Boolean(), nullable=True),
     sa.Column('uploaded_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['company_id'], ['company.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -109,8 +143,12 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
     sa.Column('job_id', sa.Integer(), nullable=False),
+    sa.Column('company_id', sa.Integer(), nullable=True),
     sa.Column('applied_at', sa.DateTime(), nullable=True),
     sa.Column('status', sa.String(), nullable=True),
+    sa.Column('resume_file_path', sa.String(length=255), nullable=True),
+    sa.Column('decision_notes', sa.Text(), nullable=True),
+    sa.ForeignKeyConstraint(['company_id'], ['company.id'], ),
     sa.ForeignKeyConstraint(['job_id'], ['job_posting.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -119,9 +157,14 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('job_id', sa.Integer(), nullable=False),
     sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('company_id', sa.Integer(), nullable=True),
     sa.Column('content', sa.Text(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('parent_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['company_id'], ['company.id'], ),
     sa.ForeignKeyConstraint(['job_id'], ['job_posting.id'], ),
+    sa.ForeignKeyConstraint(['parent_id'], ['job_comment.id'], ),
     sa.ForeignKeyConstraint(['user_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
@@ -139,6 +182,8 @@ def downgrade():
     op.drop_table('favorite_connect')
     op.drop_table('connection')
     op.drop_table('user')
+    op.drop_table('advertisements')
+    op.drop_table('token_blocklist')
     op.drop_table('interest')
     op.drop_table('company')
     # ### end Alembic commands ###

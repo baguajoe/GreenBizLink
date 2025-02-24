@@ -52,48 +52,69 @@ class Interest(db.Model):
 
 # Models
 class User(db.Model):
-    __tablename__ = 'user'
+    __tablename__ = "user"
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(200), nullable=False)
     bio = db.Column(db.String(250))
-    role = db.Column(db.Enum(UserRole))
-    certifications = db.Column(db.String(250))
-    endorsements = db.Column(db.Integer, default=0)
+    role = db.Column(db.Enum(UserRole), nullable=False, default=UserRole.CUSTOMER)  # Default to 'Customer'
     city = db.Column(db.String(50))
     state = db.Column(db.String(50))
     profile_image = db.Column(db.String(250))
     company_id = db.Column(db.Integer, db.ForeignKey('company.id'))
 
-    interests = db.relationship(
-        'Interest',
-        secondary=user_interests,
-        back_populates='users'
-    )
-    job_applications = db.relationship('JobApplication', back_populates='user', lazy=True)
-    media_files = db.relationship('UserMedia', back_populates='user')
-    images = db.relationship('UserImage', back_populates='user')
+    # New Fields
+    is_verified = db.Column(db.Boolean, default=False)  # Tracks email verification
+    last_login = db.Column(db.DateTime, nullable=True)  # Tracks last login time
+
+    # Relationships
+    interests = db.relationship("Interest", secondary=user_interests, back_populates="users")
+    job_applications = db.relationship("JobApplication", back_populates="user", lazy=True)
+    media_files = db.relationship("UserMedia", back_populates="user")
+    images = db.relationship("UserImage", back_populates="user")
 
     def serialize(self, include_interests=False):
         data = {
-            'id': self.id,
-            'name': self.name,
-            'email': self.email,
-            'bio': self.bio,
-            'role': self.role.value if self.role else None,
-            'certifications': self.certifications,
-            'endorsements': self.endorsements,
-            'city': self.city,
-            'state': self.state,
-            'profile_image': self.profile_image,
-            'company': self.company.serialize() if self.company else None
+            "id": self.id,
+            "name": self.name,
+            "email": self.email,
+            "bio": self.bio,
+            "role": self.role.value if self.role else None,
+            "city": self.city,
+            "state": self.state,
+            "profile_image": self.profile_image,
+            "company": self.company.serialize() if self.company else None,
+            "is_verified": self.is_verified,
+            "last_login": self.last_login.isoformat() if self.last_login else None,
         }
         if include_interests:
-            data['interests'] = [interest.name for interest in self.interests]
+            data["interests"] = [interest.name for interest in self.interests]
         return data
 
+class TokenBlocklist(db.Model):
+    __tablename__ = "token_blocklist"
+
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, unique=True)  # JWT Token ID
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def serialize(self):
+        return {"id": self.id, "jti": self.jti, "created_at": self.created_at.isoformat()}
+
+
+class TokenBlocklist(db.Model):
+    __tablename__ = "token_blocklist"
+
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, unique=True)  # JWT Token ID
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = {'extend_existing': True}  # Fix duplicate definition issue
+
+    def serialize(self):
+        return {"id": self.id, "jti": self.jti, "created_at": self.created_at.isoformat()}
 
 
 class Company(db.Model):
@@ -307,4 +328,33 @@ class UserImage(db.Model):
             'file_name': self.file_name,
             'file_path': self.file_path,
             'uploaded_at': self.uploaded_at.isoformat()
+        }
+    
+
+# advertising
+
+class Advertisement(db.Model):
+    __tablename__ = "advertisements"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("company.id"), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    image_url = db.Column(db.String(255))  # Optional image for the ad
+    link = db.Column(db.String(255), nullable=False)  # External link for the ad
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    active = db.Column(db.Boolean, default=True)
+
+    company = db.relationship("Company", backref="advertisements")
+
+    def serialize(self):
+        return {
+            "id": self.id,
+            "company": self.company.name,
+            "title": self.title,
+            "description": self.description,
+            "image_url": self.image_url,
+            "link": self.link,
+            "created_at": self.created_at.isoformat(),
+            "active": self.active
         }
